@@ -1,9 +1,30 @@
 """MetePDF — Desktop GUI powered by customtkinter."""
 
+import sys
+
+# Worker mode: the frozen .exe re-runs itself with this flag to convert a
+# single DOCX in an isolated process (avoids COM/tkinter deadlock).
+# Must be checked before any other import so the child exits fast.
+if "--_docx" in sys.argv:
+    idx = sys.argv.index("--_docx")
+    _in, _out, _err = sys.argv[idx + 1], sys.argv[idx + 2], sys.argv[idx + 3]
+    try:
+        import pythoncom  # type: ignore
+        pythoncom.CoInitialize()
+    except ImportError:
+        pass
+    try:
+        from docx2pdf import convert  # type: ignore
+        convert(_in, _out)
+    except Exception as _exc:
+        with open(_err, "w", encoding="utf-8") as _f:
+            _f.write(str(_exc))
+        sys.exit(1)
+    sys.exit(0)
+
 import os
 import platform
 import subprocess
-import sys
 from pathlib import Path
 from tkinter import filedialog
 
