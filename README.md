@@ -10,7 +10,7 @@ Converta TXT, imagens (PNG/JPG), DOCX e PDF para PDF — via interface gráfica 
 
 **Forma mais rápida: download direto**
 
-1. Acesse: **[github.com/Ryan-nextLvl/MetPdf/releases](https://github.com/Ryan-nextLvl/MetPdf/releases)**
+1. Acesse: **[github.com/Ryan-nextLvl/UniversalPDF/releases](https://github.com/Ryan-nextLvl/UniversalPDF/releases)**
 2. Baixe o arquivo **`UniversalPDF.exe`** da versão mais recente
 3. Clique em **`UniversalPDF.exe`** para abrir — **sem instalação, sem Python, sem dependências extras**
 4. Pronto! A interface gráfica aparece em segundos
@@ -38,8 +38,8 @@ Converta TXT, imagens (PNG/JPG), DOCX e PDF para PDF — via interface gráfica 
 
 ```bash
 # 1. Clonar o repositório
-git clone https://github.com/Ryan-nextLvl/MetPdf.git
-cd MetPdf
+git clone https://github.com/Ryan-nextLvl/UniversalPDF.git
+cd UniversalPDF
 
 # 2. Instalar uv (uma vez)
 # Windows
@@ -64,8 +64,8 @@ python gui.py
 ### Manual — pip
 
 ```bash
-git clone https://github.com/Ryan-nextLvl/MetPdf.git
-cd MetPdf
+git clone https://github.com/Ryan-nextLvl/UniversalPDF.git
+cd UniversalPDF
 pip install -r requirements.txt
 python gui.py
 ```
@@ -260,7 +260,7 @@ git tag v0.2.0
 git push origin main --tags
 ```
 
-Acesse **[github.com/Ryan-nextLvl/MetPdf/releases](https://github.com/Ryan-nextLvl/MetPdf/releases)** para baixar.
+Acesse **[github.com/Ryan-nextLvl/UniversalPDF/releases](https://github.com/Ryan-nextLvl/UniversalPDF/releases)** para baixar.
 
 ---
 
