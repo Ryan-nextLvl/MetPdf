@@ -2,42 +2,72 @@
 
 Converta TXT, imagens (PNG/JPG), DOCX e PDF para PDF — via interface gráfica ou linha de comando.
 
-## Instalação
+---
+
+## 🚀 Para Usuários Finais — Download Rápido
+
+### Windows — Executável Pronto (Recomendado)
+
+**Forma mais rápida: download direto**
+
+1. Acesse: **[github.com/Ryan-nextLvl/MetPdf/releases](https://github.com/Ryan-nextLvl/MetPdf/releases)**
+2. Baixe o arquivo **`MetePDF.exe`** da versão mais recente
+3. Clique em **`MetePDF.exe`** para abrir — **sem instalação, sem Python, sem dependências extras**
+4. Pronto! A interface gráfica aparece em segundos
+
+**Como usar:**
+- Arraste arquivos ou pastas para a janela
+- Escolha o diretório de saída
+- Clique em **Converter →** e acompanhe o progresso
+- Cancele a qualquer momento com o botão **Cancelar**
+- Ao fim, clique em **📂 Abrir pasta** para ver os PDFs gerados
+
+**Requisitos:**
+- Windows 7 ou superior
+- Para converter `.docx`: Microsoft Word ou LibreOffice instalado (opcional — outros formatos funcionam sem)
+
+**Dica — Acesso rápido:**
+- Clique com botão direito no `MetePDF.exe` → **Enviar para → Área de Trabalho (criar atalho)**
+- Ou arraste para a barra de tarefas para fixar
+
+---
+
+## 🔧 Para Desenvolvedores — Instalar do Código-Fonte
 
 ### Recomendado — `uv` (mais rápido)
 
-Com o Claude Code aberto neste projeto, execute:
-
-```
-/install
-```
-
-O comando instala o `uv` automaticamente se necessário, cria o virtualenv e instala todas as dependências.
-
-### Manual — uv
-
 ```bash
-# Instalar uv (uma vez)
+# 1. Clonar o repositório
+git clone https://github.com/Ryan-nextLvl/MetPdf.git
+cd MetPdf
+
+# 2. Instalar uv (uma vez)
 # Windows
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 # Linux / macOS
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Criar venv + instalar dependências
+# 3. Criar virtualenv e instalar dependências
 uv venv .venv
 uv pip install -r requirements.txt --python .venv
 
-# Ativar
+# 4. Ativar virtualenv
 # Windows
 .venv\Scripts\activate
 # Linux / macOS
 source .venv/bin/activate
+
+# 5. Rodar a GUI
+python gui.py
 ```
 
 ### Manual — pip
 
 ```bash
+git clone https://github.com/Ryan-nextLvl/MetPdf.git
+cd MetPdf
 pip install -r requirements.txt
+python gui.py
 ```
 
 > **Windows + DOCX:** o `docx2pdf` requer o Microsoft Word instalado.  
@@ -45,22 +75,23 @@ pip install -r requirements.txt
 
 ---
 
-## Interface gráfica (GUI)
+## 📖 Como Usar
+
+### Interface Gráfica (GUI)
 
 ```bash
 python gui.py
 ```
 
-- Arraste arquivos ou pastas para a janela (ou use os botões)
-- Escolha o diretório de saída
-- Clique em **Converter →**
-- Acompanhe o progresso em tempo real na fila de arquivos
-- Cancele a qualquer momento com o botão **Cancelar**
-- Ao fim, abra a pasta de saída com um clique
+**Fluxo:**
+1. Arraste arquivos ou pastas para a janela (ou clique nos botões **+ Arquivos** / **+ Pasta**)
+2. Escolha o diretório de saída
+3. Clique em **Converter →**
+4. Acompanhe o progresso em tempo real
+5. Cancele a qualquer momento com o botão **Cancelar**
+6. Ao fim, clique em **📂 Abrir pasta de saída** para ver os PDFs
 
----
-
-## Linha de comando (CLI)
+### Linha de Comando (CLI)
 
 ```bash
 # Arquivo único
@@ -84,7 +115,7 @@ python main.py input/ --verbose
 
 ---
 
-## Formatos suportados
+## 📋 Formatos Suportados
 
 | Extensão | Estratégia |
 |----------|-----------|
@@ -95,7 +126,17 @@ python main.py input/ --verbose
 
 ---
 
-## Estrutura do projeto
+## 🏗️ Arquitetura
+
+A conversão é centralizada em `core/service.py`. Tanto a GUI quanto a CLI usam o mesmo `ConversionService`, sem duplicação de lógica.
+
+```
+GUI (gui.py)  ──┐
+                ├──► ConversionService ──► Dispatcher ──► Converters
+CLI (main.py) ──┘
+```
+
+### Estrutura do Projeto
 
 ```
 metepdf/
@@ -109,14 +150,17 @@ metepdf/
 │   ├── base.py              # Classe abstrata BaseConverter
 │   ├── txt_converter.py     # TXT → PDF (reportlab)
 │   ├── image_converter.py   # PNG/JPG → PDF (Pillow + reportlab)
-│   ├── docx_converter.py    # DOCX → PDF (docx2pdf)
+│   ├── docx_converter.py    # DOCX → PDF (docx2pdf com subprocess worker)
 │   └── pdf_converter.py     # PDF → validação + cópia (PyMuPDF)
 ├── core/
 │   ├── dispatcher.py        # Roteador: escolhe o conversor pelo formato
-│   ├── service.py           # ConversionService — backend compartilhado por GUI e CLI
+│   ├── service.py           # ConversionService — backend compartilhado
 │   └── exceptions.py        # Hierarquia de exceções
 ├── utils/
 │   └── file_utils.py        # Helpers de caminho e coleta de arquivos
+├── .github/
+│   └── workflows/
+│       └── release.yml      # GitHub Actions: compila .exe automaticamente
 ├── assets/
 │   └── icon.ico             # Ícone da aplicação
 ├── input/                   # Pasta de entrada padrão
@@ -125,17 +169,9 @@ metepdf/
 
 ---
 
-## Arquitetura
+## 🔌 API para Desenvolvedores
 
-A conversão é centralizada em `core/service.py`. Tanto a GUI quanto a CLI usam o mesmo `ConversionService`, sem duplicação de lógica.
-
-```
-GUI (gui.py)  ──┐
-                ├──► ConversionService ──► Dispatcher ──► Converters
-CLI (main.py) ──┘
-```
-
-`ConversionService` suporta callbacks de progresso e cancelamento:
+Use `ConversionService` em seus próprios scripts:
 
 ```python
 from core.service import ConversionService
@@ -157,7 +193,6 @@ Para rodar em background (como a GUI faz):
 
 ```python
 service.convert_files(files, on_progress=..., on_done=..., threaded=True)
-# retorna imediatamente; callbacks são chamados na thread de conversão
 ```
 
 Para cancelar:
@@ -168,7 +203,7 @@ service.cancel()  # interrompe a fila após o arquivo atual
 
 ---
 
-## Adicionar um novo conversor
+## ➕ Adicionar um Novo Conversor
 
 1. Crie `converters/meu_formato_converter.py` estendendo `BaseConverter`:
 
@@ -182,24 +217,25 @@ class MeuFormatoConverter(BaseConverter):
         # lógica de conversão aqui
 ```
 
-2. Registre a extensão em `core/dispatcher.py`:
+2. Registre a extensão em `core/dispatcher.py` (na função `_registry()`):
 
 ```python
 from converters.meu_formato_converter import MeuFormatoConverter
 
-_REGISTRY: dict[str, type[BaseConverter]] = {
-    # ...
-    ".meuformato": MeuFormatoConverter,
-}
+def _registry() -> dict:
+    return {
+        # ...
+        ".meuformato": MeuFormatoConverter,
+    }
 ```
 
 Pronto — GUI e CLI passam a reconhecer o novo formato automaticamente.
 
 ---
 
-## Gerar executável (.exe)
+## 🔨 Para Desenvolvedores — Gerar Executável
 
-```
+```bash
 /build
 ```
 
@@ -207,7 +243,27 @@ Ou manualmente:
 
 ```bash
 python generate_icon.py          # gera assets/icon.ico
-pyinstaller metepdf.spec         # gera dist/MetePDF.exe
+uv pip install pyinstaller --python .venv
+.venv\Scripts\python -m PyInstaller metepdf.spec --noconfirm
 ```
 
-O executável não inclui Word ou LibreOffice. Se a conversão de `.docx` for necessária, o usuário precisa ter um deles instalado.
+O executável fica em `dist/MetePDF.exe`.
+
+---
+
+## 🚀 CI/CD — Releases Automáticas
+
+Ao criar uma git tag (`v1.0.0`, `v1.1.0`, etc.), o GitHub Actions compila automaticamente o `.exe` e publica um Release:
+
+```bash
+git tag v0.2.0
+git push origin main --tags
+```
+
+Acesse **[github.com/Ryan-nextLvl/MetPdf/releases](https://github.com/Ryan-nextLvl/MetPdf/releases)** para baixar.
+
+---
+
+## 📝 Licença
+
+MIT License — veja o arquivo `LICENSE` para detalhes.
