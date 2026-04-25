@@ -1,6 +1,6 @@
 [project]
 name = "universalpdf"
-version = "0.2.0"
+version = "0.2.1"
 description = "Convert TXT, images, DOCX, and PDF files to PDF from the command line."
 requires-python = ">=3.10"
 dependencies = [

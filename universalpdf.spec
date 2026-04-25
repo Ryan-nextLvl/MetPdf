@@ -8,7 +8,7 @@ a = Analysis(
     ["gui.py"],
     pathex=["."],
     binaries=dnd_binaries,
-    datas=ctk_datas + dnd_datas,
+    datas=ctk_datas + dnd_datas + [("assets/icon.png", "assets")],
     hiddenimports=[
         "converters",
         "converters.base",
