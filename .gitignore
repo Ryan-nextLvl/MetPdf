@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Assets generated
+assets/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

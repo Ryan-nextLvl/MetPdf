@@ -1,0 +1,7 @@
+# Generated from pyproject.toml — use /install or: uv pip install -r requirements.txt
+Pillow>=10.0.0
+reportlab>=4.0.0
+docx2pdf>=0.1.8
+PyMuPDF>=1.23.0
+customtkinter>=5.2.0
+tkinterdnd2>=0.3.0
