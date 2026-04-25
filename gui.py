@@ -4,18 +4,15 @@ import os
 import platform
 import subprocess
 import sys
-import threading
 from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
 
-# Resolve base dir whether running from source or inside a PyInstaller bundle
 _BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 sys.path.insert(0, str(_BASE))
 
-from core.dispatcher import Dispatcher
-from core.exceptions import Any2PDFError
+from core.service import ConversionResult, ConversionService
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD  # type: ignore
@@ -27,54 +24,84 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 _SUPPORTED = (".txt", ".png", ".jpg", ".jpeg", ".docx", ".pdf")
-_WIN_W, _WIN_H = 740, 640
+_WIN_W, _WIN_H = 760, 620
+_DEFAULT_OUTPUT = (
+    Path(sys.executable).parent / "output"
+    if getattr(sys, "frozen", False)
+    else Path("output")
+)
 
-# When bundled as .exe, write output next to the executable, not inside the temp bundle
-_DEFAULT_OUTPUT = (Path(sys.executable).parent / "output") if getattr(sys, "frozen", False) else Path("output")
+# ── Palette ──────────────────────────────────────────────────────────────────
+_BG       = "#0f0f1a"
+_SURFACE  = "#16162a"
+_SURFACE2 = "#1e1e36"
+_BORDER   = "#2a2a50"
+_ACCENT   = "#4fa3e3"
+_SUCCESS  = "#2ecc71"
+_ERROR    = "#e74c3c"
+_WARN     = "#f39c12"
+_DIM      = "gray50"
 
 
 # ─── File row ────────────────────────────────────────────────────────────────
 
 class FileRow(ctk.CTkFrame):
-    def __init__(self, master, path: Path, on_remove, **kw):
-        super().__init__(master, fg_color="transparent", **kw)
-        self.path = path
-        self._icon = _ext_icon(path.suffix.lower())
+    """One row in the queue: icon | name | size | status | remove."""
 
+    _STATUS_IDLE       = ("Aguardando",  _DIM)
+    _STATUS_CONVERTING = ("Convertendo…", _ACCENT)
+    _STATUS_OK         = ("✓ Concluído",  _SUCCESS)
+
+    def __init__(self, master, path: Path, on_remove, **kw):
+        super().__init__(master, fg_color=_SURFACE2, corner_radius=8, **kw)
+        self.path = path
         self.columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(self, text=self._icon, width=28, font=("", 16)).grid(row=0, column=0, padx=(4, 0))
-        ctk.CTkLabel(self, text=path.name, anchor="w", font=("", 13)).grid(row=0, column=1, sticky="ew", padx=8)
-        ctk.CTkLabel(self, text=_fmt_size(path), text_color="gray60", font=("", 11)).grid(row=0, column=2, padx=(0, 6))
-        ctk.CTkButton(
+        ctk.CTkLabel(self, text=_ext_icon(path.suffix.lower()), width=30, font=("", 16)).grid(
+            row=0, column=0, padx=(10, 4), pady=8)
+
+        ctk.CTkLabel(self, text=path.name, anchor="w", font=("", 13)).grid(
+            row=0, column=1, sticky="ew", padx=4)
+
+        ctk.CTkLabel(self, text=_fmt_size(path), text_color=_DIM, font=("", 11),
+                     width=64, anchor="e").grid(row=0, column=2, padx=(0, 8))
+
+        self._status = ctk.CTkLabel(
+            self, text=self._STATUS_IDLE[0], text_color=self._STATUS_IDLE[1],
+            font=("", 11), width=96, anchor="w",
+        )
+        self._status.grid(row=0, column=3, padx=(0, 6))
+
+        self._remove_btn = ctk.CTkButton(
             self, text="✕", width=26, height=26, fg_color="transparent",
-            hover_color="#3a3a3a", text_color="gray60", font=("", 12),
+            hover_color="#3a3a5a", text_color=_DIM, font=("", 12),
             command=lambda: on_remove(self),
-        ).grid(row=0, column=3, padx=(0, 4))
+        )
+        self._remove_btn.grid(row=0, column=4, padx=(0, 8))
 
-    def set_status(self, ok: bool, msg: str = ""):
-        color = "#2ecc71" if ok else "#e74c3c"
-        symbol = "✓" if ok else "✗"
-        ctk.CTkLabel(self, text=symbol, text_color=color, font=("", 14, "bold"), width=20).grid(row=0, column=4, padx=(2, 6))
+    # ── State transitions ─────────────────────────────────────────────────────
 
+    def mark_converting(self):
+        self._set_status(*self._STATUS_CONVERTING)
 
-# ─── Log entry ───────────────────────────────────────────────────────────────
+    def mark_success(self):
+        self.configure(fg_color="#0e2319")
+        self._set_status(*self._STATUS_OK)
+        self._remove_btn.grid_remove()
 
-class LogEntry(ctk.CTkFrame):
-    def __init__(self, master, ok: bool, text: str, output_path: Path | None = None, **kw):
-        super().__init__(master, fg_color="#1e1e2e" if ok else "#2a1a1a", corner_radius=6, **kw)
-        color = "#2ecc71" if ok else "#e74c3c"
-        badge = " OK " if ok else "FAIL"
-        ctk.CTkLabel(self, text=badge, fg_color=color, text_color="black",
-                     corner_radius=4, font=("", 11, "bold"), width=40).pack(side="left", padx=8, pady=6)
-        ctk.CTkLabel(self, text=text, anchor="w", font=("", 12),
-                     wraplength=460).pack(side="left", fill="x", expand=True, padx=(0, 4))
-        if ok and output_path:
-            ctk.CTkButton(
-                self, text="📂", width=32, height=28, fg_color="transparent",
-                hover_color="#2a3a4a", font=("", 14),
-                command=lambda p=output_path: _reveal_file(p),
-            ).pack(side="right", padx=(0, 6))
+    def mark_failed(self, reason: str = ""):
+        self.configure(fg_color="#2a0e0e")
+        short = (reason[:22] + "…") if len(reason) > 22 else reason
+        self._set_status(f"✗ {short}", _ERROR)
+        self._remove_btn.grid_remove()
+
+    def reset(self):
+        self.configure(fg_color=_SURFACE2)
+        self._set_status(*self._STATUS_IDLE)
+        self._remove_btn.grid()
+
+    def _set_status(self, text: str, color: str):
+        self._status.configure(text=text, text_color=color)
 
 
 # ─── Main window ─────────────────────────────────────────────────────────────
@@ -84,13 +111,17 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
         super().__init__()
         self.title("MetePDF")
         self.geometry(f"{_WIN_W}x{_WIN_H}")
-        self.minsize(600, 520)
+        self.minsize(600, 500)
         self.resizable(True, True)
 
         self._files: list[Path] = []
-        self._rows: list[FileRow] = []
+        self._rows: dict[Path, FileRow] = {}
         self._output_dir = _DEFAULT_OUTPUT
-        self._converting = False
+        self._service: ConversionService | None = None
+
+        # TkinterDnD.Tk is plain Tk and does not accept fg_color
+        if isinstance(self, ctk.CTk):
+            self.configure(fg_color=_BG)
 
         self._build_ui()
         if _HAS_DND:
@@ -101,111 +132,124 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
     def _build_ui(self):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
-
         self._build_header()
         self._build_drop_zone()
         self._build_file_list()
         self._build_output_row()
         self._build_action_row()
         self._build_progress()
-        self._build_log()
 
     def _build_header(self):
-        bar = ctk.CTkFrame(self, fg_color="#161622", corner_radius=0, height=52)
+        bar = ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=0, height=56)
         bar.grid(row=0, column=0, sticky="ew")
         bar.columnconfigure(1, weight=1)
+        bar.grid_propagate(False)
 
-        ctk.CTkLabel(bar, text="MetePDF", font=("", 20, "bold"), text_color="#4fa3e3").grid(
-            row=0, column=0, padx=20, pady=12, sticky="w")
-        ctk.CTkLabel(bar, text="Converter de arquivos para PDF", font=("", 12), text_color="gray60").grid(
-            row=0, column=1, sticky="w")
+        ctk.CTkLabel(bar, text="MetePDF", font=("", 22, "bold"), text_color=_ACCENT).grid(
+            row=0, column=0, padx=20, pady=14, sticky="w")
+
+        ctk.CTkLabel(bar, text="Conversor de arquivos para PDF", font=("", 12),
+                     text_color=_DIM).grid(row=0, column=1, sticky="w")
 
         self._theme_btn = ctk.CTkButton(
             bar, text="☀", width=36, height=36, fg_color="transparent",
-            hover_color="#2a2a3a", font=("", 16), command=self._toggle_theme,
+            hover_color=_SURFACE2, font=("", 16), command=self._toggle_theme,
         )
         self._theme_btn.grid(row=0, column=2, padx=16)
 
     def _build_drop_zone(self):
-        zone = ctk.CTkFrame(self, fg_color="#1a1a2e", corner_radius=12, border_width=2, border_color="#2a2a4a")
-        zone.grid(row=1, column=0, padx=20, pady=(14, 0), sticky="ew")
+        zone = ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=12,
+                            border_width=2, border_color=_BORDER)
+        zone.grid(row=1, column=0, padx=20, pady=(16, 0), sticky="ew")
         zone.columnconfigure((0, 1, 2), weight=1)
 
-        label_text = "Arraste arquivos aqui  •  ou use os botões" if _HAS_DND else "Adicione arquivos com os botões abaixo"
-        ctk.CTkLabel(zone, text="📄  " + label_text, font=("", 13), text_color="gray60").grid(
-            row=0, column=0, columnspan=3, pady=(14, 8))
+        drop_hint = "Arraste arquivos ou pastas aqui" if _HAS_DND else "Selecione arquivos ou pastas"
+        ctk.CTkLabel(zone, text=f"📥  {drop_hint}", font=("", 14),
+                     text_color="gray60").grid(row=0, column=0, columnspan=3, pady=(18, 6))
 
-        exts = "  ".join(_SUPPORTED)
-        ctk.CTkLabel(zone, text=exts, font=("", 10), text_color="gray50").grid(
-            row=1, column=0, columnspan=3, pady=(0, 10))
+        ctk.CTkLabel(zone, text="  ".join(_SUPPORTED), font=("", 10),
+                     text_color=_DIM).grid(row=1, column=0, columnspan=3, pady=(0, 12))
 
-        ctk.CTkButton(zone, text="+ Arquivos", command=self._browse_files, width=130).grid(
-            row=2, column=0, padx=20, pady=(0, 14), sticky="e")
-        ctk.CTkButton(zone, text="+ Pasta", command=self._browse_folder, width=130,
+        ctk.CTkButton(zone, text="+ Arquivos", command=self._browse_files,
+                      width=140, height=34).grid(row=2, column=0, padx=20, pady=(0, 16), sticky="e")
+
+        ctk.CTkButton(zone, text="+ Pasta", command=self._browse_folder, width=140, height=34,
                       fg_color="#2a4a6a", hover_color="#3a5a7a").grid(
-            row=2, column=1, padx=4, pady=(0, 14))
-        ctk.CTkButton(zone, text="Limpar lista", command=self._clear_files, width=130,
+            row=2, column=1, padx=4, pady=(0, 16))
+
+        ctk.CTkButton(zone, text="Limpar lista", command=self._clear_files, width=140, height=34,
                       fg_color="#3a2a2a", hover_color="#4a3a3a").grid(
-            row=2, column=2, padx=20, pady=(0, 14), sticky="w")
+            row=2, column=2, padx=20, pady=(0, 16), sticky="w")
 
     def _build_file_list(self):
-        self._file_scroll = ctk.CTkScrollableFrame(self, label_text="Arquivos selecionados", label_font=("", 12))
-        self._file_scroll.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
+        self._file_scroll = ctk.CTkScrollableFrame(
+            self, label_text="Arquivos na fila", label_font=("", 12), fg_color=_BG)
+        self._file_scroll.grid(row=2, column=0, padx=20, pady=12, sticky="nsew")
         self._file_scroll.columnconfigure(0, weight=1)
+
         self._empty_label = ctk.CTkLabel(
-            self._file_scroll, text="Nenhum arquivo adicionado ainda.",
-            text_color="gray50", font=("", 12),
+            self._file_scroll,
+            text="Nenhum arquivo adicionado.\nUse os botões acima ou arraste arquivos.",
+            text_color=_DIM, font=("", 12), justify="center",
         )
-        self._empty_label.grid(row=0, column=0, pady=20)
+        self._empty_label.grid(row=0, column=0, pady=28)
 
     def _build_output_row(self):
         row = ctk.CTkFrame(self, fg_color="transparent")
-        row.grid(row=3, column=0, padx=20, pady=(0, 6), sticky="ew")
+        row.grid(row=3, column=0, padx=20, pady=(0, 8), sticky="ew")
         row.columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(row, text="Saída:", font=("", 13)).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkLabel(row, text="Saída:", font=("", 13), width=50, anchor="w").grid(
+            row=0, column=0, padx=(0, 8))
         self._out_var = ctk.StringVar(value=str(_DEFAULT_OUTPUT))
-        ctk.CTkEntry(row, textvariable=self._out_var, font=("", 12)).grid(row=0, column=1, sticky="ew", padx=(0, 8))
-        ctk.CTkButton(row, text="Selecionar", width=100, command=self._browse_output).grid(row=0, column=2)
+        ctk.CTkEntry(row, textvariable=self._out_var, font=("", 12)).grid(
+            row=0, column=1, sticky="ew", padx=(0, 8))
+        ctk.CTkButton(row, text="Selecionar", width=100, command=self._browse_output).grid(
+            row=0, column=2)
 
     def _build_action_row(self):
         row = ctk.CTkFrame(self, fg_color="transparent")
-        row.grid(row=4, column=0, padx=20, pady=(0, 6), sticky="ew")
+        row.grid(row=4, column=0, padx=20, pady=(0, 8), sticky="ew")
         row.columnconfigure(0, weight=1)
 
-        self._count_label = ctk.CTkLabel(row, text="0 arquivo(s) na fila", font=("", 12), text_color="gray60")
+        self._count_label = ctk.CTkLabel(
+            row, text="0 arquivo(s) na fila", font=("", 12), text_color=_DIM)
         self._count_label.grid(row=0, column=0, sticky="w")
+
+        self._cancel_btn = ctk.CTkButton(
+            row, text="Cancelar", width=110, height=38, font=("", 13),
+            fg_color="#5a2a2a", hover_color="#6a3a3a",
+            command=self._cancel_conversion,
+        )
+        self._cancel_btn.grid(row=0, column=1, padx=(0, 8))
+        self._cancel_btn.grid_remove()
 
         self._convert_btn = ctk.CTkButton(
             row, text="Converter  →", width=160, height=38,
             font=("", 14, "bold"), command=self._start_conversion,
         )
-        self._convert_btn.grid(row=0, column=1)
+        self._convert_btn.grid(row=0, column=2)
 
     def _build_progress(self):
-        self._progress = ctk.CTkProgressBar(self, height=10, corner_radius=5)
+        self._progress = ctk.CTkProgressBar(self, height=8, corner_radius=4)
         self._progress.set(0)
         self._progress.grid(row=5, column=0, padx=20, pady=(0, 4), sticky="ew")
 
         status_row = ctk.CTkFrame(self, fg_color="transparent")
-        status_row.grid(row=6, column=0, padx=20, pady=(0, 2), sticky="ew")
+        status_row.grid(row=6, column=0, padx=20, pady=(0, 16), sticky="ew")
         status_row.columnconfigure(0, weight=1)
 
-        self._progress_label = ctk.CTkLabel(status_row, text="", font=("", 11), text_color="gray60")
+        self._progress_label = ctk.CTkLabel(
+            status_row, text="", font=("", 11), text_color=_DIM)
         self._progress_label.grid(row=0, column=0, sticky="w")
 
         self._open_folder_btn = ctk.CTkButton(
             status_row, text="📂  Abrir pasta de saída", width=170, height=28,
             font=("", 12), fg_color="#1a3a2a", hover_color="#2a4a3a",
-            command=self._open_output_folder,
+            command=lambda: _open_path(self._output_dir),
         )
         self._open_folder_btn.grid(row=0, column=1)
         self._open_folder_btn.grid_remove()
-
-    def _build_log(self):
-        self._log_scroll = ctk.CTkScrollableFrame(self, label_text="Resultados", label_font=("", 12), height=130)
-        self._log_scroll.grid(row=7, column=0, padx=20, pady=(4, 16), sticky="ew")
-        self._log_scroll.columnconfigure(0, weight=1)
 
     # ── Drag & drop ───────────────────────────────────────────────────────────
 
@@ -214,10 +258,7 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
         self.dnd_bind("<<Drop>>", self._on_drop)
 
     def _on_drop(self, event):
-        raw = event.data
-        # tkinterdnd2 wraps paths with spaces in braces
-        paths = self.tk.splitlist(raw)
-        self._add_paths([Path(p) for p in paths])
+        self._add_paths([Path(p) for p in self.tk.splitlist(event.data)])
 
     # ── File management ───────────────────────────────────────────────────────
 
@@ -243,38 +284,34 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
     def _add_paths(self, paths: list[Path]):
         added = 0
         for p in paths:
-            if not p.is_file():
-                continue
-            if p.suffix.lower() not in _SUPPORTED:
-                continue
-            if p in self._files:
+            if not p.is_file() or p.suffix.lower() not in _SUPPORTED or p in self._rows:
                 continue
             self._files.append(p)
-            row = FileRow(self._file_scroll, p, on_remove=self._remove_row)
-            row.grid(row=len(self._rows), column=0, sticky="ew", padx=4, pady=2)
-            self._rows.append(row)
+            file_row = FileRow(self._file_scroll, p, on_remove=self._remove_row)
+            file_row.grid(row=len(self._rows), column=0, sticky="ew", padx=4, pady=3)
+            self._rows[p] = file_row
             added += 1
 
         if added:
             self._empty_label.grid_remove()
             self._update_count()
 
-    def _remove_row(self, row: FileRow):
-        self._files.remove(row.path)
-        self._rows.remove(row)
-        row.destroy()
-        for i, r in enumerate(self._rows):
+    def _remove_row(self, file_row: FileRow):
+        self._files.remove(file_row.path)
+        del self._rows[file_row.path]
+        file_row.destroy()
+        for i, r in enumerate(self._rows.values()):
             r.grid(row=i)
         if not self._files:
-            self._empty_label.grid(row=0, column=0, pady=20)
+            self._empty_label.grid(row=0, column=0, pady=28)
         self._update_count()
 
     def _clear_files(self):
-        for row in self._rows:
-            row.destroy()
+        for r in self._rows.values():
+            r.destroy()
         self._files.clear()
         self._rows.clear()
-        self._empty_label.grid(row=0, column=0, pady=20)
+        self._empty_label.grid(row=0, column=0, pady=28)
         self._update_count()
 
     def _update_count(self):
@@ -284,59 +321,73 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
     # ── Conversion ────────────────────────────────────────────────────────────
 
     def _start_conversion(self):
-        if self._converting:
-            return
         if not self._files:
-            self._flash_label(self._count_label, "Adicione pelo menos um arquivo!", "orange")
+            _flash(self._count_label, "Adicione pelo menos um arquivo!", _WARN)
             return
 
         self._output_dir = Path(self._out_var.get())
-        self._converting = True
         self._convert_btn.configure(state="disabled", text="Convertendo…")
+        self._cancel_btn.grid()
         self._open_folder_btn.grid_remove()
         self._progress.set(0)
-        self._progress_label.configure(text="")
-        for widget in self._log_scroll.winfo_children():
-            widget.destroy()
+        self._progress_label.configure(text="Iniciando…", text_color=_DIM)
 
-        threading.Thread(target=self._run_conversion, daemon=True).start()
+        for r in self._rows.values():
+            r.reset()
 
-    def _run_conversion(self):
-        dispatcher = Dispatcher(output_dir=self._output_dir)
-        total = len(self._files)
-        done = 0
+        # Mark the first file as "converting" immediately
+        if self._files:
+            self._rows[self._files[0]].mark_converting()
 
-        for i, (path, row) in enumerate(zip(self._files, self._rows)):
-            self.after(0, self._progress_label.configure, {"text": f"Convertendo {path.name}… ({i+1}/{total})"})
-            try:
-                out = dispatcher.dispatch(path)
-                self.after(0, row.set_status, True)
-                self.after(0, lambda p=path, o=out: self._log(True, f"{p.name}  →  {o}", o))
-            except Any2PDFError as exc:
-                self.after(0, row.set_status, False, str(exc))
-                self.after(0, lambda p=path, e=exc: self._log(False, f"{p.name}  —  {e}"))
-            done += 1
-            self.after(0, self._progress.set, done / total)
-
-        self.after(0, self._finish_conversion, done, total)
-
-    def _finish_conversion(self, done: int, total: int):
-        self._converting = False
-        self._convert_btn.configure(state="normal", text="Converter  →")
-        self._progress_label.configure(
-            text=f"Concluído: {done}/{total} arquivo(s) convertido(s).",
-            text_color="#2ecc71" if done == total else "orange",
+        self._service = ConversionService(self._output_dir)
+        self._service.convert_files(
+            self._files,
+            on_progress=self._on_progress,
+            on_done=self._on_done,
+            threaded=True,
         )
-        if done > 0:
+
+    def _cancel_conversion(self):
+        if self._service:
+            self._service.cancel()
+        self._cancel_btn.configure(state="disabled")
+        self._progress_label.configure(text="Cancelando…", text_color=_WARN)
+
+    def _on_progress(self, done: int, total: int, result: ConversionResult):
+        row = self._rows.get(result.input_path)
+        if row:
+            if result.success:
+                self.after(0, row.mark_success)
+            else:
+                self.after(0, row.mark_failed, result.error or "")
+
+        # Mark the next file in queue as converting
+        if done < total:
+            next_row = self._rows.get(self._files[done])
+            if next_row:
+                self.after(0, next_row.mark_converting)
+
+        self.after(0, self._progress.set, done / total)
+        self.after(0, self._progress_label.configure, {
+            "text": f"{done}/{total}  —  {result.input_path.name}",
+            "text_color": _DIM,
+        })
+
+    def _on_done(self, results: list[ConversionResult]):
+        ok = sum(1 for r in results if r.success)
+        total = len(results)
+        color = _SUCCESS if ok == total else (_WARN if ok > 0 else _ERROR)
+        msg = f"Concluído: {ok}/{total} arquivo(s) convertido(s)."
+        self.after(0, self._finish_ui, msg, color, ok > 0)
+
+    def _finish_ui(self, msg: str, color: str, show_folder: bool):
+        self._convert_btn.configure(state="normal", text="Converter  →")
+        self._cancel_btn.grid_remove()
+        self._cancel_btn.configure(state="normal")
+        self._progress_label.configure(text=msg, text_color=color)
+        self._service = None
+        if show_folder:
             self._open_folder_btn.grid()
-
-    def _open_output_folder(self):
-        _open_path(self._output_dir)
-
-    def _log(self, ok: bool, text: str, output_path: Path | None = None):
-        entry = LogEntry(self._log_scroll, ok, text, output_path=output_path)
-        entry.grid(row=len(self._log_scroll.winfo_children()), column=0, sticky="ew", padx=4, pady=2)
-        self._log_scroll._parent_canvas.yview_moveto(1.0)
 
     # ── Theme ─────────────────────────────────────────────────────────────────
 
@@ -346,20 +397,10 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
         ctk.set_appearance_mode(new_mode)
         self._theme_btn.configure(text="🌙" if new_mode == "light" else "☀")
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _flash_label(label: ctk.CTkLabel, msg: str, color: str):
-        original = label.cget("text")
-        original_color = label.cget("text_color")
-        label.configure(text=msg, text_color=color)
-        label.after(2500, lambda: label.configure(text=original, text_color=original_color))
-
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _open_path(path: Path) -> None:
-    """Open a file or folder in the system file manager."""
     target = path if path.is_dir() else path.parent
     system = platform.system()
     if system == "Windows":
@@ -370,19 +411,11 @@ def _open_path(path: Path) -> None:
         subprocess.Popen(["xdg-open", str(target)])
 
 
-def _reveal_file(path: Path) -> None:
-    """Select and highlight a specific file in the file manager."""
-    system = platform.system()
-    if system == "Windows":
-        subprocess.Popen(["explorer", "/select,", str(path)])
-    elif system == "Darwin":
-        subprocess.Popen(["open", "-R", str(path)])
-    else:
-        subprocess.Popen(["xdg-open", str(path.parent)])
-
-
 def _ext_icon(ext: str) -> str:
-    return {".pdf": "📕", ".docx": "📘", ".txt": "📄", ".png": "🖼", ".jpg": "🖼", ".jpeg": "🖼"}.get(ext, "📎")
+    return {
+        ".pdf": "📕", ".docx": "📘", ".txt": "📄",
+        ".png": "🖼", ".jpg": "🖼", ".jpeg": "🖼",
+    }.get(ext, "📎")
 
 
 def _fmt_size(path: Path) -> str:
@@ -395,6 +428,13 @@ def _fmt_size(path: Path) -> str:
     if b < 1024 ** 2:
         return f"{b / 1024:.1f} KB"
     return f"{b / 1024 ** 2:.1f} MB"
+
+
+def _flash(label: ctk.CTkLabel, msg: str, color: str) -> None:
+    orig_text = label.cget("text")
+    orig_color = label.cget("text_color")
+    label.configure(text=msg, text_color=color)
+    label.after(2500, lambda: label.configure(text=orig_text, text_color=orig_color))
 
 
 # ─── Entry point ─────────────────────────────────────────────────────────────
