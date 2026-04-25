@@ -1,4 +1,4 @@
-# MetePDF
+# UniversalPDF
 
 Converta TXT, imagens (PNG/JPG), DOCX e PDF para PDF — via interface gráfica ou linha de comando.
 
@@ -11,8 +11,8 @@ Converta TXT, imagens (PNG/JPG), DOCX e PDF para PDF — via interface gráfica 
 **Forma mais rápida: download direto**
 
 1. Acesse: **[github.com/Ryan-nextLvl/MetPdf/releases](https://github.com/Ryan-nextLvl/MetPdf/releases)**
-2. Baixe o arquivo **`MetePDF.exe`** da versão mais recente
-3. Clique em **`MetePDF.exe`** para abrir — **sem instalação, sem Python, sem dependências extras**
+2. Baixe o arquivo **`UniversalPDF.exe`** da versão mais recente
+3. Clique em **`UniversalPDF.exe`** para abrir — **sem instalação, sem Python, sem dependências extras**
 4. Pronto! A interface gráfica aparece em segundos
 
 **Como usar:**
@@ -27,7 +27,7 @@ Converta TXT, imagens (PNG/JPG), DOCX e PDF para PDF — via interface gráfica 
 - Para converter `.docx`: Microsoft Word ou LibreOffice instalado (opcional — outros formatos funcionam sem)
 
 **Dica — Acesso rápido:**
-- Clique com botão direito no `MetePDF.exe` → **Enviar para → Área de Trabalho (criar atalho)**
+- Clique com botão direito no `UniversalPDF.exe` → **Enviar para → Área de Trabalho (criar atalho)**
 - Ou arraste para a barra de tarefas para fixar
 
 ---
@@ -139,12 +139,12 @@ CLI (main.py) ──┘
 ### Estrutura do Projeto
 
 ```
-metepdf/
+universalpdf/
 ├── gui.py                   # Interface gráfica (customtkinter)
 ├── main.py                  # CLI
 ├── requirements.txt
 ├── pyproject.toml
-├── metepdf.spec             # Configuração PyInstaller
+├── universalpdf.spec             # Configuração PyInstaller
 ├── generate_icon.py         # Geração do ícone .ico
 ├── converters/
 │   ├── base.py              # Classe abstrata BaseConverter
@@ -244,10 +244,10 @@ Ou manualmente:
 ```bash
 python generate_icon.py          # gera assets/icon.ico
 uv pip install pyinstaller --python .venv
-.venv\Scripts\python -m PyInstaller metepdf.spec --noconfirm
+.venv\Scripts\python -m PyInstaller universalpdf.spec --noconfirm
 ```
 
-O executável fica em `dist/MetePDF.exe`.
+O executável fica em `dist/UniversalPDF.exe`.
 
 ---
 

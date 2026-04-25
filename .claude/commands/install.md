@@ -1,4 +1,4 @@
-Install all MetePDF dependencies using `uv`. Follow these steps exactly:
+Install all UniversalPDF dependencies using `uv`. Follow these steps exactly:
 
 ## Step 1 — check if `uv` is installed
 Run:

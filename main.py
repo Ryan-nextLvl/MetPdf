@@ -1,5 +1,5 @@
 """
-MetePDF — convert files to PDF from the command line.
+UniversalPDF — convert files to PDF from the command line.
 
 Usage examples:
     python main.py document.docx
@@ -21,7 +21,7 @@ _DEFAULT_OUTPUT = Path("output")
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="metepdf",
+        prog="universalpdf",
         description="Convert TXT, images, DOCX, and PDF files into PDF.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Supported extensions: .txt .png .jpg .jpeg .docx .pdf",

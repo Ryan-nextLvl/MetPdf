@@ -6,6 +6,9 @@ build/
 dist/
 *.spec.bak
 
+# Generated icon (source: assets/icon.png)
+assets/icon.ico
+
 # Python cache
 __pycache__/
 *.py[cod]

@@ -1,4 +1,4 @@
-"""MetePDF — Desktop GUI powered by customtkinter."""
+"""UniversalPDF — Desktop GUI powered by customtkinter."""
 
 import sys
 
@@ -130,7 +130,7 @@ class FileRow(ctk.CTkFrame):
 class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
     def __init__(self):
         super().__init__()
-        self.title("MetePDF")
+        self.title("UniversalPDF")
         self.geometry(f"{_WIN_W}x{_WIN_H}")
         self.minsize(600, 500)
         self.resizable(True, True)
@@ -166,7 +166,7 @@ class App(ctk.CTk if not _HAS_DND else TkinterDnD.Tk):  # type: ignore[misc]
         bar.columnconfigure(1, weight=1)
         bar.grid_propagate(False)
 
-        ctk.CTkLabel(bar, text="MetePDF", font=("", 22, "bold"), text_color=_ACCENT).grid(
+        ctk.CTkLabel(bar, text="UniversalPDF", font=("", 22, "bold"), text_color=_ACCENT).grid(
             row=0, column=0, padx=20, pady=14, sticky="w")
 
         ctk.CTkLabel(bar, text="Conversor de arquivos para PDF", font=("", 12),

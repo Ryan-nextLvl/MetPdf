@@ -1,6 +1,6 @@
 [project]
-name = "metepdf"
-version = "0.1.0"
+name = "universalpdf"
+version = "0.2.0"
 description = "Convert TXT, images, DOCX, and PDF files to PDF from the command line."
 requires-python = ">=3.10"
 dependencies = [
@@ -13,8 +13,8 @@ dependencies = [
 ]
 
 [project.scripts]
-metepdf     = "main:main"
-metepdf-gui = "gui:main"
+universalpdf     = "main:main"
+universalpdf-gui = "gui:main"
 
 [dependency-groups]
 dev = []

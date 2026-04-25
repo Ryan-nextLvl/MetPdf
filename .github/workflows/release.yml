@@ -26,13 +26,13 @@ jobs:
         run: .venv\Scripts\python.exe generate_icon.py
 
       - name: Build .exe
-        run: .venv\Scripts\python.exe -m PyInstaller metepdf.spec --noconfirm
+        run: .venv\Scripts\python.exe -m PyInstaller universalpdf.spec --noconfirm
 
       - name: Publicar Release
         uses: softprops/action-gh-release@v2
         with:
-          name: MetePDF ${{ github.ref_name }}
-          files: dist/MetePDF.exe
+          name: UniversalPDF ${{ github.ref_name }}
+          files: dist/UniversalPDF.exe
           body: |
-            ## MetePDF ${{ github.ref_name }}
-            Baixe o `MetePDF.exe` abaixo — sem instalação, sem Python necessário.
+            ## UniversalPDF ${{ github.ref_name }}
+            Baixe o `UniversalPDF.exe` abaixo — sem instalação, sem Python necessário.

@@ -1,4 +1,4 @@
-Build the MetePDF desktop application into a standalone .exe using PyInstaller.
+Build the UniversalPDF desktop application into a standalone .exe using PyInstaller.
 Work inside the `C:\Users\Ryan\any2pdf` directory for all steps.
 
 ## Step 1 — install PyInstaller
@@ -23,13 +23,13 @@ rmdir /s /q dist build 2>nul
 ## Step 4 — build the .exe
 Run:
 ```
-.venv\Scripts\python.exe -m PyInstaller metepdf.spec --noconfirm
+.venv\Scripts\python.exe -m PyInstaller universalpdf.spec --noconfirm
 ```
 This may take 1-3 minutes. Show the output to the user.
 
 ## Step 5 — verify and report
 After the build completes:
-- Check that `dist\MetePDF.exe` exists
+- Check that `dist\UniversalPDF.exe` exists
 - Show its file size in MB
-- Tell the user: **"Abra o arquivo `dist\MetePDF.exe` para executar o app — sem terminal, sem Python instalado."**
-- Remind them they can pin `MetePDF.exe` to the taskbar or create a desktop shortcut (right-click → Enviar para → Área de trabalho).
+- Tell the user: **"Abra o arquivo `dist\UniversalPDF.exe` para executar o app — sem terminal, sem Python instalado."**
+- Remind them they can pin `UniversalPDF.exe` to the taskbar or create a desktop shortcut (right-click → Enviar para → Área de trabalho).
