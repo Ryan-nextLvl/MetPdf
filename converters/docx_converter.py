@@ -28,10 +28,24 @@ class DocxConverter(BaseConverter):
 
     @staticmethod
     def _convert_windows(convert_fn, input_path: Path, output_path: Path) -> None:
+        # COM automation (Word) requires CoInitialize on the calling thread.
+        # Without this, Word's STA apartment tries to marshal calls through the
+        # main thread's message pump, deadlocking against tkinter's event loop.
+        try:
+            import pythoncom  # type: ignore
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
         try:
             convert_fn(str(input_path), str(output_path))
         except Exception as exc:
             raise ConversionError(str(input_path), str(exc)) from exc
+        finally:
+            try:
+                import pythoncom  # type: ignore
+                pythoncom.CoUninitialize()
+            except ImportError:
+                pass
 
     @staticmethod
     def _convert_unix(convert_fn, input_path: Path, output_path: Path) -> None:
