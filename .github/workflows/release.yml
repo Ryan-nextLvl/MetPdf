@@ -1,0 +1,38 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Instalar dependências
+        run: |
+          uv venv .venv
+          uv pip install -r requirements.txt --python .venv
+          uv pip install pyinstaller --python .venv
+
+      - name: Gerar ícone
+        run: .venv\Scripts\python.exe generate_icon.py
+
+      - name: Build .exe
+        run: .venv\Scripts\python.exe -m PyInstaller metepdf.spec --noconfirm
+
+      - name: Publicar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: MetePDF ${{ github.ref_name }}
+          files: dist/MetePDF.exe
+          body: |
+            ## MetePDF ${{ github.ref_name }}
+            Baixe o `MetePDF.exe` abaixo — sem instalação, sem Python necessário.
